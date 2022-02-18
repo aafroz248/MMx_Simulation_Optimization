@@ -1,0 +1,27 @@
+.welcome {
+  letter-spacing: var(--unnamed-character-spacing-0);
+  text-align: left;
+  font: normal normal Semibold 10px 'Open Sans';
+  letter-spacing: 0px;
+  color: #585858;
+  opacity: 1;
+}
+
+
+.title {
+  letter-spacing: var(--unnamed-character-spacing-0);
+  text-align: left;
+  font: normal normal Semibold 10px 'Open Sans';
+  letter-spacing: 0px;
+  color: #585858;
+  opacity: 1;
+}
+
+.home_step {
+  letter-spacing: var(--unnamed-character-spacing-0);
+  text-align: left;
+  font: normal normal Regular 36px 'Open Sans';
+  letter-spacing: 0px;
+  color: #585858;
+  opacity: 1;
+}

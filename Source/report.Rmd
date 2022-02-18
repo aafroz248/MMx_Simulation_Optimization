@@ -1,0 +1,1031 @@
+---
+title: "MMx Simulation and Optimization"
+subtitle: v_`r if (!require(rjson)) {install.packages('rjson', dependencies = T, repos = "http://cloud.r-project.org/");};version=rjson::fromJSON(file = '../Source/Description.json')['version'];version` - (`r format(Sys.Date(), "%B %d, %Y")`)
+author:
+ - name: Scenario Report
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    css : ../www/Styles/html_styles.css
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+    css : ../www/Styles/pretty_styles.css
+  pdf_document:
+    toc: true
+    toc_depth: 2
+header-includes:
+- \usepackage{fancyhdr}
+- \usepackage{lipsum}
+- \pagestyle{fancy}
+- \fancyfoot[LE,RO]{\thepage}
+- \fancypagestyle{plain}{\pagestyle{fancy}}
+- \renewcommand{\footrulewidth}{0.4pt}
+- \rhead{EDA Report for Data Frame}
+- \fancyfoot[L]{`r version$version.string`}
+- \fancyfoot[R]{`r format(Sys.time(), "%B %d %Y")`}
+
+---
+
+
+```{r, echo=FALSE}
+# Read parameters passed to this function
+reactData <- mmxRDS$reactData
+histReactData <- mmxRDS$histReactData
+adstock <- mmxRDS$adstock
+input <- mmxRDS$input
+reactDataOpt <- mmxRDS$reactDataOpt
+mmxModel <- mmxRDS$mmxModel
+scenarioTable <- mmxRDS$scenarioTable
+scenarioList <- mmxRDS$scenarioList
+viewScenario <- mmxRDS$viewScenario
+runPanelNonPctContribution <- mmxRDS$runPanelNonPctContribution
+runPanel <- mmxRDS$runPanel
+runPanelHist <- mmxRDS$runPanelHist
+histPanelNonPctContribution <- mmxRDS$histPanelNonPctContribution
+runPanelAll <- mmxRDS$runPanelAll
+compareScenario <- mmxRDS$compareScenario
+allPctContribDataScenario1 <- mmxRDS$allPctContribDataScenario1
+allPctContribDataScenario2 <- mmxRDS$allPctContribDataScenario2
+allNonPctContribDataScenario1 <- mmxRDS$allNonPctContribDataScenario1
+allNonPctContribDataScenario2 <- mmxRDS$allNonPctContribDataScenario2
+allSalesDataScenario1 <- mmxRDS$allSalesDataScenario1
+allSalesDataScenario2 <- mmxRDS$allSalesDataScenario2
+
+```
+
+
+```{r setup, include=FALSE}
+
+tryCatch({
+  knitr::opts_chunk$set(echo = FALSE, error=FALSE, warning = FALSE, fig.path = "../Downloads/temp/", comment = NA, fig.width=10, fig.height=6)
+},error=function(e)
+{
+  print(paste0("Error : ",e))
+})
+
+
+loadPackage <- function(pkgName){
+  
+  if (!do.call(require, list(pkgName))) {
+    install.packages(pkgName, dependencies = T, repos = "http://cran.us.r-project.org")
+    do.call(library, list(pkgName))
+  }
+}
+
+packages <- c('shiny',
+              'shinydashboard',
+              'shinyBS',
+              'jsonlite',
+              'scales',
+              'DT',
+              'tidyr',
+              'ggplot2',
+              'reshape',
+              'purrr',
+              'data.table',
+              'rhandsontable',
+              'formattable',
+              'gdata',
+              'tools',
+              'nloptr',
+              'dplyr'
+              # 'plotly'
+              # 'xlsx'
+)
+
+# sign_formatter <- formatter(
+#   "span",
+#   style = x ~ style(color = ifelse(x < 0 , "red", "green")),
+#   x ~ icontext(ifelse(x < 0, "arrow-down", "arrow-up"), x))
+# sign_formatter(c(-1, 0, 1))
+
+#Importing all packages
+lapply(packages, FUN = function(p){ loadPackage(p) })
+  
+  source('../www/MMX_Utils/Utils/adstock_decay_utility_functions.R')
+  source('../www/MMX_Utils/Utils/simulation_utils.R')
+  # source('./www/MMX_Utils/Utils/contribution_utility_function.R')
+  #source('../www/MMX_Utils/Utils/contrib_marg_utility_functions.R')
+  source('../www/MMX_Utils/Utils/customPrecision.R')
+
+  mycat <- function(text){
+    cat(gsub(pattern = "\n", replacement = "  \n", x = text))
+  }
+
+  
+  
+  # plot <- function(...,ncol=NULL,nrow=1){
+  #   
+  #   charts <- list(...)
+  #   if(is.null(ncol)) ncol<- length(charts)
+  #   
+  #   if(is.null(charts[[1]])) return('Plot not available')
+  #   if(length(charts)==0) return('Plot not available')
+  #   if(any(class(charts) %in% c('gtable','grob'))) return(charts)
+  #   
+  #   charts$ncol=ncol
+  #   charts$nrow=nrow
+  #   do.call(grid.arrange,charts)
+  # }
+  
+```
+
+```{r}
+htmltools::img(src = knitr::image_uri("../www/Logos/logo.png"), 
+               alt = 'logo', 
+               style = 'position:relative; float: right; margin-top: -125px; z-index:100;')
+
+# htmltools::img(src = knitr::image_uri("../www/Logos/client_logo.png"), 
+#                alt = 'logo', 
+#                style = 'position:relative; float: right;height: 90px;width: 90px; margin-top: -125px; z-index:100;')
+```
+
+```{r go to top, results='asis',message=F}
+
+#pander(reactData$summaryTable,style='rmarkdown')
+
+#-----------------------------------------------------------------  Arrow  -------------------------------------------------------------------------#
+htmltools::tags$a(href="#top",
+htmltools::tags$i("",style="background: #ffffff;border-radius: 50%;display: block;height: 30px;width: 30px;-moz-border-radius: 50%;-webkit-border-radius: 50%;border: solid #C4BBB9;position: fixed; right: 15px; bottom :130px;"),
+htmltools::tags$i("",style="border: solid #C4BBB9;border-width: 0 3px 3px 0;display: inline-block;padding: 3px;transform: rotate(-135deg);-webkit-transform: rotate(-135deg);position: fixed; right: 26px; bottom :143px;"),
+htmltools::tags$i("",style="border: solid #C4BBB9;border-width: 0 3px 3px 0;display: inline-block;padding: 3px;transform: rotate(-135deg);-webkit-transform: rotate(-135deg);position: fixed; right: 26px; bottom :135px;"))
+#---------------------------------------------------------------------------------------------------------------------------------------------------#
+
+scrolLimit <- function(noOfRows){
+  if(!is.null(noOfRows) && noOfRows<10){
+    
+    swe = paste(as.character(noOfRows*50),"px")
+  }
+  else{
+    swe = "400px"
+  }
+  return(swe)
+}
+columnalign <- function(x) {
+  columnclass <- lapply(x, class)
+  return(unname(unlist(which(columnclass != "factor")-1)))
+}
+
+```
+
+```{r load library, message=FALSE, warning=FALSE}
+
+htmltools::tags$script("$(document).ready( function() {
+  $('.toc-content').removeClass( 'col-md-9' );
+} );
+")
+
+
+htmltools::tags$script("$(document).ready( function() {
+  $('.toc-content').addClass( 'col-sm-12' );
+} );
+")
+htmltools::tags$script("$(document).ready( function() {
+  $('.toc-content').addClass( 'col-md-12' );
+} );
+")
+
+htmltools::HTML('<h6 class=col-sm-4 style="left:0px;bottom:0px;width:20vw;position:fixed;">&copy; Copyright 2019 Mu Sigma Inc. All Rights Reserved</h6>')
+
+htmltools::HTML('<script src="file:///./Source/jquery-1.7.1.min.js"></script>')
+
+add=paste0(getwd(),"/toc-sticky-scroll-report.js")
+htmltools::tags$script(src=add)
+
+tryCatch({
+
+pander::panderOptions('knitr.auto.asis', FALSE)
+
+mycat <- function(text){
+  cat(gsub(pattern = "\n", replacement = "  \n", x = text))
+}
+},error=function(e)
+{
+  print(paste0("Error : ",e))
+})
+
+
+```
+
+`r if(!is.null(reactData$dataset)){"## Configurations"}` 
+
+`r if(!is.null(reactData$dataset)){"### Loaded Historical Dataset"}`
+
+```{r}
+# library(dplyr)
+if(!is.null(reactData$dataset) | nrow(reactData$dataset)>0){
+  cat("The historical dataset (is the superset of train dataset) based on which the MMx model was built.\nSpend patterns will be decided based on this dataset.")
+  nums <-  unlist(lapply(reactData$dataset, is.numeric)) 
+  reactData$dataset[[reactData$DateVar]] <- as.Date(reactData$dataset[[reactData$DateVar]])
+  DT::datatable(roundOffDataFrame(head(reactData$dataset),TRUE,2),options=list(scrollX=T, searching=FALSE, dom = 't'))%>% formatCurrency(colnames(reactData$dataset[nums]),currency = "", interval = 3, mark = ",")
+}
+# shiny::HTML(reactData$preprocessing_text)
+```
+
+
+
+`r if(!is.null(reactData$formula_report)){"### Loaded MMx Model"}`
+
+```{r}
+if(!is.null(reactData$formula_report)){
+  cat("This is the MMX model object created in the modeling phase and display the inherent formula used to forecast the spends. This model object will be used to simulate results for the specified range of spends.\n")
+  cat("Formula of the uploaded model object is \n")
+  print(reactData$formula_report)
+}
+
+if(!is.null(mmxModel$train_data) | nrow(mmxModel$train_data)>0){
+
+cat("Uploaded training dataset \n")
+nums <-  unlist(lapply(mmxModel$train_data, is.numeric)) 
+DT::datatable(roundOffDataFrame(head(mmxModel$train_data),TRUE,2),options=list(scrollX=T, searching=FALSE, dom = 't'))%>% formatCurrency(colnames(mmxModel$train_data[nums]),currency = "", interval = 3, mark = ",")
+}
+
+```
+
+`r if(!is.null(reactData$preprocessing_text)){"### Selected Date Columns"}`
+```{r}
+if(!is.null(reactData$preprocessing_text)){
+cat(reactData$preprocessing_text)
+}
+```
+
+`r if(!is.null(reactData$spend_preprocessing)){"### Selected Spend, Panel and Target Columns"}`
+
+```{r}
+if(!is.null(reactData$spend_preprocessing)){
+  cat(reactData$spend_preprocessing)
+}
+
+```
+
+
+<!-- `r if(!is.null(reactData$loadDataSalesPlot)){"### Historical Data Plot"}` -->
+
+```{r, eval=F}
+if(!is.null(reactData$loadDataPanelVar)){
+  cat(paste0('Selected panel : ', reactData$loadDataPanelVar))
+}
+
+if(!is.null(reactData$loadDataSalesPlot)){
+  plot(reactData$loadDataSalesPlot)
+}
+
+```
+
+
+
+
+```{r}
+adstock<-mmxRDS$adstock
+if(!is.null(adstock$dataset) | nrow(adstock$dataset)>0){
+  cat(paste0('The underlying theory of adstock is that the exposure to advertising builds awareness in the consumer population, resulting in sales. Below are the mentioned optimal adstock values that have been considered for various channels while going about this exercise.'))
+}
+if(!is.null(adstock$dataset) | nrow(adstock$dataset)>0){
+  nums <-  unlist(lapply(adstock$dataset, is.numeric)) 
+  DT::datatable(roundOffDataFrame(head(adstock$dataset),TRUE,2),options=list(scrollX=T, searching=FALSE, dom = 't'))%>% formatCurrency(colnames(adstock$dataset[nums]),currency = "", interval = 3, mark = ",")
+}
+
+if(!is.null(input$viewAdstockPanelVar) & !is.null(input$viewAdstockChannelVar)){
+  cat(paste0('Panel selected : ',input$viewAdstockPanelVar))
+  cat(paste0('\nChannel selected : ',input$viewAdstockChannelVar))
+}
+
+if(!is.null(reactData$reportAdstockPlot)){
+  plot(reactData$reportAdstockPlot)
+}
+  
+
+```
+
+
+`r if(!is.null(reactData$timePeriodPreprocessingText)){"### Selected Simulation/ Optimization Time Period"}`
+
+```{r}
+if(!is.null(reactData$timePeriodPreprocessingText)){
+  mycat(reactData$timePeriodPreprocessingText)
+}
+
+
+```
+
+`r if(nrow(histReactData$dataset)>0 & nrow(adstock$transformedDataset)>0){"### View Historical Comparison Period Performance {.tabset}"}`
+
+```{r, eval=F}
+if(!is.null(input$viewAdstockPanelVar)){
+  shiny::h3('Summary')
+cat(paste0('Panel selected : ',input$viewAdstockPanelVar))
+}
+
+```
+
+
+<!-- `r if(nrow(histReactData$dataset)>0 & nrow(adstock$transformedDataset)>0){"### Time Series View {.tabset}"}` -->
+
+```{r, results='asis'}
+# if(!is.null(reactData$reportHistSalesSummary) & !is.null(reactData$reportHistSpendsSummary) & !is.null(reactData$reportHistPctSpendsSummary) & !is.null(reactData$reportHistContribSummary) & !is.null(reactData$reportHistContribPctSummary) & !is.null(reactData$reportHistROISummary)){
+  
+  
+  if(!is.null(reactData$reportHistSalesSummary)){
+    cat('\n\n')
+  cat('#### Sales\n')
+    plot(reactData$reportHistSalesSummary)
+    cat('\n\n')
+  }
+  
+  
+  
+  if(!is.null(reactData$reportHistSpendsSummary)){
+    cat('\n\n')
+  cat('#### Absolute Spends\n')
+    plot(reactData$reportHistSpendsSummary)
+    cat('\n\n')
+  }
+  
+  
+  
+  
+  if(!is.null(reactData$reportHistPctSpendsSummary)){
+    cat('\n\n')
+  cat('#### Percentage Spends\n')
+    plot(reactData$reportHistPctSpendsSummary)
+    cat('\n\n')
+  }
+  
+  
+  
+  
+  if(!is.null(reactData$reportHistContribSummary)){
+    cat('\n\n')
+  cat('#### Absolute Contribution\n')
+    plot(reactData$reportHistContribSummary)
+     cat('\n\n')
+  }
+  
+ 
+  
+  
+  if(!is.null(reactData$reportHistContribPctSummary)){
+    cat('\n\n')
+    cat('#### Percentage Contribution\n')
+    plot(reactData$reportHistContribPctSummary)
+    cat('\n\n')
+  }
+  
+  
+  
+  if(!is.null(reactData$reportHistROISummary)){
+    cat('\n\n')
+    cat('#### ROI\n')
+    plot(reactData$reportHistROISummary)
+    cat('\n\n')
+  }
+  
+# }
+```
+
+
+`r if(length(scenarioList$files)>0){"## Simulated Scenarios"}`
+```{r}
+  if(!is.null(scenarioTable$dataset) | nrow(scenarioTable$dataset)>0){
+    cat("Here one can view a list of saved feasible scenarios and one of them has been mentioned in detail for comparison or review by the client")
+    shiny::h3('List of submitted scenarios')
+    if(ncol(scenarioTable$dataset[unlist(lapply(scenarioTable$dataset, is.numeric))])==0){
+      DT::datatable(roundOffDataFrame(scenarioTable$dataset, TRUE, 2), options=list(pagelength=6, scrollX=T, searching=FALSE, dom = 't'))
+    }
+    else{
+    DT::datatable(roundOffDataFrame(scenarioTable$dataset, TRUE, 2), options=list(pagelength=6, scrollX=T, searching=FALSE, dom = 't'))%>%formatCurrency(colnames(scenarioTable$dataset[unlist(lapply(scenarioTable$dataset, is.numeric))]),currency = "", interval = 3, mark = ",")
+    }
+  }
+```
+
+`r if(length(scenarioList$files)>0){paste0("### ",reactData$viewScenarioSelected)}`
+
+`r if(length(scenarioList$files)>0){"#### Simulated Spend Data {.tabset}"}`
+```{r, results='asis'}
+# if(!is.null(input$generateScenarioSelected)){
+#   cat(paste0('Generated Scenario : ',input$generateScenarioSelected))
+# }
+# if(!is.null(input$viewGeneratedScenarioSelected)){
+#   shiny::h3('View simulation spend data')
+#   cat(paste0('Selected Scenario : ',input$viewGeneratedScenarioSelected))
+# }
+  
+  if(!is.null(reactData$generatedScenarioData)){
+    # cat('\n\n')
+    # cat('### Tabular View\n')
+    cat("This is a simulation dataset based on the variation parameter and spend strategy specified in the previous section.")
+    nums <-  unlist(lapply(reactData$generatedScenarioData, is.numeric))
+    DT::datatable(roundOffDataFrame(reactData$generatedScenarioData, TRUE, 2), options=list(scrollX=T, searching=TRUE, paging=TRUE))%>%formatCurrency(colnames(reactData$generatedScenarioData[nums]),currency = "", interval = 3, mark = ",")
+    # cat('\n\n')
+  }
+  
+```
+
+
+<!-- `r if(length(scenarioList$files)>0){"#### Run Simulation"}` -->
+```{r, eval=FALSE}
+if(!is.null(input$runScenarioSelected)){
+  cat(paste0('Scenario Run: ',input$runScenarioSelected))
+}
+```
+
+<!-- `r if(!is.null(reactData$viewScenarioSelected) & !is.null(reactData$panelSelected)) {"#### View Simulation Results"}` -->
+```{r, eval=F}
+  
+  if(!is.null(reactData$viewScenarioSelected) & !is.null(reactData$panelSelected)){
+    cat(paste0('Scenario Selected: ',reactData$viewScenarioSelected))
+    cat('\n')
+    cat(paste0('Panel Selected: ',reactData$panelSelected))
+    shiny::h4(paste0('Scenario Summary - ', reactData$viewScenarioSelected))
+  }
+  # if((!is.null(viewScenario$runScenarioResultsData) & !is.null(viewScenario$historicalScenarioDataWide)) |
+  #   (nrow(viewScenario$runScenarioResultsData)>0 & nrow(viewScenario$historicalScenarioDataWide)>0)){
+  
+
+```
+
+`r if(!is.null(reactData$simulationSalesPlot)) {"#### Simulation Summary {.tabset}"}`
+```{r, results='asis'}
+   if(!is.null(reactData$simulationSalesPlot)){
+    cat('\n\n')
+    cat('##### Sales\n')
+    plot(reactData$simulationSalesPlot)
+    cat('\n\n')
+  }
+  
+  
+  
+  if(!is.null(reactData$simulationSpendAreaAbsPlot)){
+    cat('\n\n')
+    cat('##### Absolute Spends\n')
+    plot(reactData$simulationSpendAreaAbsPlot)
+    cat('\n\n')
+  }
+  
+  
+  
+  if(!is.null(reactData$simulationSpendAreaPctPlot)){
+    cat('\n\n')
+    cat('##### Percentage Spends\n')
+    plot(reactData$simulationSpendAreaPctPlot)
+    cat('\n\n')
+  }
+  
+  
+  
+  if(!is.null(reactData$simulationContributionAbsPlot)){
+    cat('\n\n')
+    cat('##### Absolute Contribution\n')
+    plot(reactData$simulationContributionAbsPlot)
+    cat('\n\n')
+  }
+  
+    
+  
+  if(!is.null(reactData$simulationContributionPctPlot)){
+    cat('\n\n')
+    cat('##### Percentage Contribution\n')
+    plot(reactData$simulationContributionPctPlot)
+    cat('\n\n')
+  }
+  
+  
+  
+  if(!is.null(reactData$simulationROIPlot)){
+    cat('\n\n')
+    cat('##### ROI\n')
+    plot(reactData$simulationROIPlot)
+    cat('\n\n')
+  }
+```
+
+
+`r if(!is.null(reactData$salesSummaryPlot)) {"#### Simulation Period vs Historical Comparison Period (Summary) {.tabset}"}`
+```{r, results='asis'}
+  # shiny::h4(reactData$viewScenarioSelected)
+  
+  if(!is.null(reactData$salesSummaryPlot)){
+    cat('\n\n')
+    cat('##### Sales\n')
+    plot(reactData$salesSummaryPlot)
+    cat('\n\n')
+  }
+  
+  
+
+  
+  if(!is.null(reactData$spendSummaryPlot)){
+    cat('\n\n')
+    cat('##### Spends\n')
+    plot(reactData$spendSummaryPlot)
+    cat('\n\n')
+  }
+  
+  
+
+
+  
+  if(!is.null(reactData$contributionSummaryPlot)){
+    cat('\n\n')
+    cat('##### Contribution\n')
+    plot(reactData$contributionSummaryPlot)
+    cat('\n\n')
+  }
+  
+  
+
+  
+  if(!is.null(reactData$ROISummaryPlot)){
+    cat('\n\n')
+    cat('##### ROI\n')
+    plot(reactData$ROISummaryPlot)
+    cat('\n\n')
+  }
+  
+  
+```
+
+
+`r if(!is.null(reactData$salesTSOverlayPlot)) {"#### Simulation Period vs Historical Comparison Period (Time Series) {.tabset}"}`
+```{r, results='asis'}
+  
+# if(nrow(runPanelNonPctContribution$dataset)>0 & nrow(runPanel$dataset_long)>0 & nrow(runPanelHist$dataset)>0 & nrow(histPanelNonPctContribution$dataset)>0 & nrow(runPanelAll$dataset)>0){
+  if(!is.null(input$selectScenarioChannel)){
+  shiny::h4(reactData$viewScenarioSelected)
+  cat(paste0('Channel Selected: ', input$selectScenarioChannel))
+  }
+  
+  if(!is.null(reactData$salesTSOverlayPlot)){
+    cat('\n\n')
+    cat('##### Sales Overlay\n')
+    plot(reactData$salesTSOverlayPlot)
+    cat('\n\n')
+  }
+  
+  
+  
+  
+  if(!is.null(reactData$salesTSPlot)){
+    cat('\n\n')
+    cat('##### Sales\n')
+    plot(reactData$salesTSPlot)
+    cat('\n\n')
+  }
+  
+  
+
+  
+  if(!is.null(reactData$spendTSOverlayPlot)){
+    cat('\n\n')
+    cat('##### Spends Overlay\n')
+    plot(reactData$spendTSOverlayPlot)
+    cat('\n\n')
+  }
+  
+  
+  
+  
+  if(!is.null(reactData$spendTSPlot)){
+    cat('\n\n')
+    cat('##### Spends\n')
+    plot(reactData$spendTSPlot)
+    cat('\n\n')
+  }
+  
+  
+  
+  
+  if(!is.null(reactData$contributionTSOverlayPlot)){
+    cat('\n\n')
+    cat('##### Contribution Overlay\n')
+    plot(reactData$contributionTSOverlayPlot)
+    cat('\n\n')
+  }
+  
+  
+  
+  
+  if(!is.null(reactData$contributionTSPlot)){
+    cat('\n\n')
+    cat('##### Contribution\n')
+    plot(reactData$contributionTSPlot)
+    cat('\n\n')
+  }
+  
+  
+  
+  
+  if(!is.null(reactData$ROITSOverlayPlot)){
+    cat('\n\n')
+    cat('##### ROI Overlay\n')
+    plot(reactData$ROITSOverlayPlot)
+    cat('\n\n')
+  }
+  
+  
+  
+  
+  if(!is.null(reactData$ROITSPlot)){
+    cat('\n\n')
+    cat('##### ROI\n')
+    plot(reactData$ROITSPlot)
+    cat('\n\n')
+  }
+  
+  
+  
+  # }
+  
+```
+
+`r if(!is.null(input$selectedObjective)){"## Optimized Scenarios"}`
+
+```{r, eval=F}
+  # if(!is.null(reactData$opti_scenarioNameTable)){
+  #   shiny::h3('List of submitted scenarios')
+  #   DT::datatable(roundOffDataFrame(reactData$opti_scenarioNameTable, TRUE, 2), options=list(pagelength=6, scrollX=T, searching=FALSE, dom = 't')) %>%formatCurrency(colnames(reactData$opti_scenarioNameTable[unlist(lapply(reactData$opti_scenarioNameTable, is.numeric))]),currency = "", interval = 3, mark = ",")
+  # }
+if(!is.null(reactData$opti_scenarioNameTable)){
+if(nrow(reactData$opti_scenarioNameTable)>0){
+nums <-  unlist(lapply(reactData$opti_scenarioNameTable, is.numeric)) 
+reactData$opti_scenarioNameTable[[reactData$DateVar]] <- as.Date(reactData$opti_scenarioNameTable[[reactData$DateVar]])
+DT::datatable(roundOffDataFrame(head(reactData$opti_scenarioNameTable),TRUE,2),options=list(scrollX=T, searching=FALSE, dom = 't'))%>% formatCurrency(colnames(reactData$opti_scenarioNameTable[nums]),currency = "", interval = 3, mark = ",")
+}}
+```
+
+`r if(!is.null(input$selectedObjective)){paste0("###", input$chooseOptiScenario)}`
+
+`r if(!is.null(input$selectedObjective)){paste0("#### " ,"Selected Business Priority: ", input$selectedObjective)}`
+
+
+<!-- `r if(!is.null(input$budgetPercent) & !is.null(reactData$optimisedBudget)){"#### Define Constraints"}` -->
+
+```{r}
+# shiny::br()
+# shiny::HTML('The 
+# <ul><li>Cool</li>
+# <li>Maximize ROI option gives user an option to maximize the return under given spends constraint</li>
+# <li>Revenue Chase option can be used for optimizing spends to achieve a target revenue</li>
+# </ul>')
+if(!is.null(input$budgetPercent)){
+mycat(paste0("Historical Budget: $", format(round(reactData$budget), big.mark = ","),"\n"))
+# shiny::br()
+mycat(paste0("Incremental Budget (%): ", input$budgetPercent,"\n"))
+# shiny::br()
+
+mycat(paste0("New Budget: $", format(round(reactData$optimisedBudget), big.mark = ","),"\n"))
+}
+
+if(!is.null(input$budgetPercent)){
+  nums <-  unlist(lapply(reactData$constraint, is.numeric)) 
+  if(any(nums==TRUE)){
+  mycat('Entered Constraints')
+  DT::datatable(reactData$constraint,options=list(scrollX=T, pagelength=10))%>% formatCurrency(colnames(reactData$constraint[nums]),currency = "", interval = 3, mark = ",")
+  }
+  else{
+    mycat('Entered Constraints')
+  DT::datatable(reactData$constraint,options=list(scrollX=T, pagelength=10))
+  }
+}
+
+if(!is.null(input$budgetPercent)){
+  mycat('Entered Channel Bounds')
+  nums <-  unlist(lapply(reactData$bound, is.numeric)) 
+  DT::datatable(reactData$bound,options=list(scrollX=T, pagelength=10))%>% formatCurrency(colnames(reactData$bound[nums]),currency = "", interval = 3, mark = ",")
+}
+
+if(!is.null(input$selectedTechnique)){
+mycat(paste0('Selected Optimization Technique : "', input$selectedTechnique,'"\n'))
+mycat(paste0("The optimized value for the Business Objective '", input$selectedObjective, "' is: US($)", reactData$optimal_value, "\n",reactData$final_message))
+}
+
+```
+
+
+
+<!-- `r if(!is.null(input$choosePanel)){"#### View Optimization Results"}` -->
+
+`r if(!is.null(input$choosePanel)){"##### Optimization Summary {.tabset}"}`
+```{r, results='asis'}
+
+#################################################################################################
+  
+  if(!is.null(reactData$reportSalesSummary)){
+    cat('\n\n')
+    cat('###### Total Sales\n')
+    plot(reactData$reportSalesSummary)
+    cat('\n\n')
+  }
+
+  if(!is.null(reactData$reportallSalesSummary)){
+    cat('\n\n')
+    cat('###### All Sales\n')
+    plot(reactData$reportallSalesSummary)
+    cat('\n\n')
+  }
+  
+  
+  if(!is.null(reactData$reportSpendsSummary)){
+    cat('\n\n')
+    cat('###### Absolute Spends\n')
+    plot(reactData$reportSpendsSummary)
+    cat('\n\n')
+  }
+
+  if(!is.null(reactData$reportpctSpendsSummary)){
+    cat('\n\n')
+    cat('###### Percentage Spends\n')
+    plot(reactData$reportpctSpendsSummary)
+    cat('\n\n')
+  }
+  
+  
+  if(!is.null(reactData$reportContributionSummary)){
+    cat('\n\n')
+    cat('###### Absolute Contribution\n')
+    plot(reactData$reportContributionSummary)
+    cat('\n\n')
+  }
+  
+  
+    
+  
+  if(!is.null(reactData$reportpctContributionSummary)){
+    cat('\n\n')
+    cat('###### Percentage Contribution\n')
+    plot(reactData$reportpctContributionSummary)
+    cat('\n\n')
+  }
+  
+  
+  
+  
+  if(!is.null(reactData$reportROISummary)){
+    cat('\n\n')
+    cat('###### ROI\n')
+    plot(reactData$reportROISummary)
+    cat('\n\n')
+  }
+  
+  
+
+```
+
+`r if(!is.null(input$choosePanel)){"##### Optimization Comparison {.tabset}"}`
+```{r, results='asis'}
+##################################################################################################
+
+  
+  if(!is.null(reactData$reportSalesSC)){
+  cat('\n\n')
+  cat('###### Sales\n')
+  plot(reactData$reportSalesSC)
+  cat('\n\n')
+}
+  
+  
+
+  
+  if(!is.null(reactData$reportSpendsSC)){
+  cat('\n\n')
+  cat('###### Spends\n')
+  plot(reactData$reportSpendsSC)
+  cat('\n\n')
+}
+  
+  
+
+
+  
+  if(!is.null(reactData$reportContributionSC)){
+  cat('\n\n')
+  cat('###### Contribution\n')
+  plot(reactData$reportContributionSC)
+  cat('\n\n')
+}
+  
+  
+
+  
+  if(!is.null(reactData$reportROISC)){
+  cat('\n\n')
+  cat('###### ROI\n')
+  plot(reactData$reportROISC)
+  cat('\n\n')
+}
+  
+  
+
+###################################################################################################
+```
+
+`r if(!is.null(input$choosePanel)){"##### Optimization Time-Series Comparison {.tabset}"}`
+```{r, results='asis'}
+
+  
+  if(!is.null(reactData$reportSalesTS)){
+    cat('\n\n')
+    cat('###### Sales Overlay\n')
+    plot(reactData$reportSalesTS)
+    cat('\n\n')
+  }
+  
+  
+  
+  
+   if(!is.null(reactData$reportSalesContinuousTS)){
+    cat('\n\n')
+    cat('###### Sales\n')
+    plot(reactData$reportSalesContinuousTS)
+    cat('\n\n')
+  }
+  
+  
+
+
+   if(!is.null(reactData$reportSpendsTS)){
+    cat('\n\n')
+    cat('###### Spends Overlay\n')
+    plot(reactData$reportSpendsTS)
+    cat('\n\n')
+  }
+  
+  
+  
+  
+   if(!is.null(reactData$reportSpendsContinuousTS)){
+    cat('\n\n')
+    cat('###### Spends\n')
+    plot(reactData$reportSpendsContinuousTS)
+    cat('\n\n')
+  }
+  
+  
+  
+  
+   if(!is.null(reactData$reportContributionTS)){
+    cat('\n\n')
+    cat('###### Contribution Overlay\n')
+    plot(reactData$reportContributionTS)
+    cat('\n\n')
+  }
+  
+  
+  
+  
+   if(!is.null(reactData$reportContributionContinuousTS)){
+    cat('\n\n')
+    cat('###### Contribution\n')
+    plot(reactData$reportContributionContinuousTS)
+    cat('\n\n')
+  }
+  
+  
+  
+  
+   if(!is.null(reactData$reportROITS)){
+    cat('\n\n')
+    cat('###### ROI Overlay\n')
+    plot(reactData$reportROITS)
+    cat('\n\n')
+  }
+  
+  
+  
+  
+   if(!is.null(reactData$reportROIContinuousTS)){
+    cat('\n\n')
+    cat('###### ROI\n')
+    plot(reactData$reportROIContinuousTS)
+    cat('\n\n')
+  }
+  
+  
+```
+
+`r if(!is.null(compareScenario$histScenario1Wide) & !is.null(compareScenario$histScenario2Wide) & !is.null(compareScenario$runScenario1Wide) & !is.null(compareScenario$runScenario2Wide)){"## Compare Scenarios"}`
+```{r, results='asis'}
+if(!is.null(adstock$compareScenarioList)){
+shiny::h4("Select Scenarios")
+cat(paste0('Scenarios selected for comparison: ', adstock$compareScenarioList))
+cat('\n')
+}
+if(!is.null(reactData$CSPanelSelected)){
+  cat(paste0('Panel Selected: ', reactData$CSPanelSelected))
+}
+
+
+if(!is.null(compareScenario$histScenario1Wide) & !is.null(compareScenario$histScenario2Wide) & !is.null(compareScenario$runScenario1Wide) & !is.null(compareScenario$runScenario2Wide)){
+  if(nrow(compareScenario$histScenario1Wide)>0 & nrow(compareScenario$histScenario2Wide)>0 & nrow(compareScenario$runScenario1Wide)>0 & nrow(compareScenario$runScenario2Wide)>0){
+  
+  shiny::h3("Tabular View")
+  nums <-  unlist(lapply(reactData$compareScenarioTable, is.numeric))
+  DT::datatable(roundOffDataFrame(reactData$compareScenarioTable,TRUE,2),options=list(scrollX=T, searching=TRUE, paging=TRUE))%>%                              formatCurrency(colnames(reactData$compareScenarioTable[nums]),currency = "", interval = 3, mark = ",")
+}}
+
+
+```
+
+
+`r if(!is.null(reactData$scenarioSalesHistPlot)){"### Summary View {.tabset}"}`
+```{r, results='asis'}
+  
+  if(!is.null(reactData$scenarioSalesHistPlot) & !is.null(reactData$scenarioSalesSimPlot)){
+    cat('\n\n')
+    cat('#### Sales\n')
+    plot(reactData$scenarioSalesHistPlot)
+    plot(reactData$scenarioSalesSimPlot)
+    cat('\n\n')
+  }
+  
+  
+  
+  
+  
+   if(!is.null(reactData$scenarioSpendHistPlot) & !is.null(reactData$scenarioSpendSimPlot)){
+    cat('\n\n')
+    cat('#### Spends\n')
+    plot(reactData$scenarioSpendHistPlot)
+    plot(reactData$scenarioSpendSimPlot)
+    cat('\n\n')
+  }
+  
+  
+  
+  
+  
+   if(!is.null(reactData$scenarioContributionHistPlot) & !is.null(reactData$scenarioContributionSimPlot)){
+    cat('\n\n')
+    cat('#### Contribution\n')
+    plot(reactData$scenarioContributionHistPlot)
+    plot(reactData$scenarioContributionSimPlot)
+    cat('\n\n')
+  }
+  
+
+  
+  
+  
+  
+   if(!is.null(reactData$scenarioROIHistPlot) & !is.null(reactData$scenarioROISimPlot)){
+    cat('\n\n')
+    cat('#### ROI\n')
+    plot(reactData$scenarioROIHistPlot)
+    plot(reactData$scenarioROISimPlot)
+    cat('\n\n')
+  }
+
+  
+  
+```
+
+`r if(!is.null(reactData$salesCSTSplot)){"### Time Series View {.tabset}"}`
+
+```{r, results='asis'}
+# if(nrow(allPctContribDataScenario1$dataset)>0 & nrow(allPctContribDataScenario2$dataset)>0 & nrow(allNonPctContribDataScenario1$dataset)>0 & nrow(allNonPctContribDataScenario2$dataset)>0 & nrow(allSalesDataScenario1$dataset)>0 & nrow(allSalesDataScenario2$dataset)>0){
+  
+  
+   if(!is.null(reactData$salesCSTSplot)){
+    cat('\n\n')
+    cat('#### Sales\n')
+    plot(reactData$salesCSTSplot)
+    cat('\n\n')
+  }
+  
+  
+
+  
+   if(!is.null(reactData$spendsCSTSplot)){
+    cat('\n\n')
+    cat('#### Spends\n')
+    plot(reactData$spendsCSTSplot)
+    cat('\n\n')
+  }
+  
+ 
+
+
+  
+   if(!is.null(reactData$contribCSTSplot)){
+    cat('\n\n')
+    cat('#### Contribution\n')
+    plot(reactData$contribCSTSplot)
+    cat('\n\n')
+  }
+  
+  
+
+  
+   if(!is.null(reactData$roiCSTSPlot)){
+    cat('\n\n')
+    cat('#### ROI\n')
+    plot(reactData$roiCSTSPlot)
+    cat('\n\n')
+  }
+  
+  
+
+# }
+```
