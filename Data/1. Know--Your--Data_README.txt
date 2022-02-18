@@ -1,0 +1,5 @@
+## Data CSVs and description about the data:
+* historical_data.csv      -> As the name suggests, the file contains historical data information on marketing spends
+* Flighting_Data.csv       -> This file is for one of Simulation Scenarios, it contains sample spend pattern as per Flighting - Simulation Scenario Method
+* custom_spend_pattern.csv -> This file is for one of Simulation Scenarios, it contains sample spend pattern as per Custom Spend Pattern Method
+* external_data.csv        -> This file contains features that may not be calculated from historical data for future time period (Simulated/ Optimization Time Period) eg: Future Holiday Markings etc.
